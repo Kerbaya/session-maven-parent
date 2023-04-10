@@ -18,32 +18,43 @@
  */
 package com.kerbaya.session;
 
+import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.List;
 
-import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.repository.RemoteRepository;
-
-import com.kerbaya.session.internal.CommandVisitor;
-import com.kerbaya.session.internal.Result;
-import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsCommand;
-import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsResult;
-
-class CommandHandler implements CommandVisitor<Result>
+public class SessionInstanceRig
 {
-	private final ResolveArtifactsHandler resolveArtifacts;
-	
-	public CommandHandler(
-			RepositorySystem rs,
-			RepositorySystemSession rss,
-			List<RemoteRepository> projectRepos)
+	public static void main(String[] args)
 	{
-		resolveArtifacts = new ResolveArtifactsHandler(rs, rss, projectRepos);
+		int rc;
+		try
+		{
+			DefaultArtifactCoords dac = new DefaultArtifactCoords();
+			dac.setGroupId("junit");
+			dac.setArtifactId("junit");
+			dac.setExtension("jar");
+			dac.setVersion("4.13.2");
+
+			try (SessionInstance si = new SessionInstance(
+					Paths.get("C:", "dev", "apache-maven-3.8.4"),
+					Collections.emptyList(),
+					Paths.get("C:/temp"), 
+					null))
+			{
+				for (int i = 0; i < 10; i++)
+				{
+					List<ArtifactResult> rep = si.resolveArtifacts(Collections.singletonList(dac));
+					System.out.println(rep);
+				}
+			}
+			rc=0;
+		}
+		catch (Throwable t)
+		{
+			t.printStackTrace();
+			rc=1;
+		}
+		System.exit(rc);
 	}
-	
-	@Override
-	public ResolveArtifactsResult visit(ResolveArtifactsCommand c)
-	{
-		return resolveArtifacts.apply(c);
-	}
+
 }

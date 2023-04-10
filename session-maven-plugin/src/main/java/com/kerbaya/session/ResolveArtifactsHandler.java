@@ -35,11 +35,11 @@ import org.eclipse.aether.resolution.ArtifactRequest;
 import org.eclipse.aether.resolution.ArtifactResolutionException;
 import org.eclipse.aether.resolution.ArtifactResult;
 
-import com.kerbaya.session.command.CommandException;
-import com.kerbaya.session.command.resolve_artifacts.ResolveArtifactQuery;
-import com.kerbaya.session.command.resolve_artifacts.ResolveArtifactResult;
-import com.kerbaya.session.command.resolve_artifacts.ResolveArtifactsCommand;
-import com.kerbaya.session.command.resolve_artifacts.ResolveArtifactsResult;
+import com.kerbaya.session.internal.resolve_artifacts.SerializableArtifactResult;
+import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsCommand;
+import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsResult;
+import com.kerbaya.session.internal.resolve_artifacts.SerializableArtifact;
+import com.kerbaya.session.internal.resolve_artifacts.SerializableArtifactCoords;
 
 import lombok.AllArgsConstructor;
 
@@ -50,43 +50,84 @@ class ResolveArtifactsHandler implements Function<ResolveArtifactsCommand, Resol
 	private final RepositorySystemSession rss;
 	private final List<RemoteRepository> projectRepos;
 
-	private ArtifactRequest resolveArtifactQueryToArtifactRequest(ResolveArtifactQuery aq)
+	private static String assertNotEmpty(String str, String key)
 	{
+		if (str.isEmpty())
+		{
+			throw new IllegalArgumentException("emptyStr [" + key + "]");
+		}
+		return str;
+	}
+	
+	private static String assertNotNullAndNotEmpty(String str, String key)
+	{
+		if (str == null)
+		{
+			throw new IllegalArgumentException("nullStr [" + key + "]");
+		}
+		
+		return assertNotEmpty(str, key);
+	}
+	
+	private static String assertNullOrNotEmpty(String str, String key)
+	{
+		return str == null ?
+				null
+				: assertNotEmpty(str, key);
+	}
+	
+	private ArtifactRequest serializableArtifactCoordsToArtifactRequest(SerializableArtifactCoords aq)
+	{
+		String groupId = assertNotNullAndNotEmpty(aq.getGroupId(), "groupId");
+		String artifactId = assertNotNullAndNotEmpty(aq.getArtifactId(), "artifactId");
+		String extension = assertNotNullAndNotEmpty(aq.getExtension(), "extension");
+		String classifier = assertNullOrNotEmpty(aq.getClassifier(), "classifier");
+		String version = assertNotNullAndNotEmpty(aq.getVersion(), "version");
 		ArtifactRequest ar = new ArtifactRequest(
-				new DefaultArtifact(
-						aq.getGroupId(), aq.getArtifactId(), aq.getClassifier(), aq.getExtension(), aq.getVersion()),
+				classifier == null ?
+						new DefaultArtifact(groupId, artifactId, extension, version)
+						: new DefaultArtifact(groupId, artifactId, classifier, extension, version),
 				projectRepos, 
 				null);
 		ar.setTrace(new RequestTrace(aq));
 		return ar;
 	}
 	
-	private static ResolveArtifactQuery artifactResultToResolveArtifactQuery(ArtifactResult ar)
+	private static SerializableArtifactResult artifactResultToSerializableArtifactResult(ArtifactResult ar)
 	{
-		return (ResolveArtifactQuery) ar.getRequest().getTrace().getData();
-	}
-	
-	private static ResolveArtifactResult artifactResultToResolveArtifactResult(ArtifactResult ar)
-	{
-		ResolveArtifactResult rar = new ResolveArtifactResult();
-		rar.setResolved(ar.isResolved());
+		SerializableArtifactResult rar = new SerializableArtifactResult();
+		rar.setArtifactCoords((SerializableArtifactCoords) ar.getRequest().getTrace().getData());
+		
+		SerializableArtifact sa;
 		Artifact a = ar.getArtifact();
 		if (a == null)
 		{
-			rar.setBaseVersion(null);
-			rar.setPath(null);
-			rar.setVersion(null);
+			sa = null;
 		}
 		else
 		{
-			rar.setBaseVersion(a.getBaseVersion());
 			File file = a.getFile();
-			rar.setPath(file == null ? null : file.getAbsolutePath().toString());
-			rar.setVersion(a.getVersion());
+			if (file == null)
+			{
+				sa = null;
+			}
+			else
+			{
+				sa = new SerializableArtifact();
+				sa.setArtifactId(a.getArtifactId());
+				sa.setBaseVersion(a.getBaseVersion());
+				String classifier = a.getClassifier();
+				sa.setClassifier(classifier.isEmpty() ? null : classifier);
+				sa.setExtension(a.getExtension());
+				sa.setFile(file.getAbsoluteFile());
+				sa.setGroupId(a.getGroupId());
+				sa.setVersion(a.getVersion());
+			}
 		}
 		
+		rar.setArtifact(sa);
 		rar.setExceptions(ar.getExceptions().stream()
-				.map(ExceptionInfoFactory.INSTANCE)
+				.map(new SerializableExceptionInfoFactory())
 				.collect(Collectors.toCollection(ArrayList::new)));
 		return rar;
 	}
@@ -95,13 +136,13 @@ class ResolveArtifactsHandler implements Function<ResolveArtifactsCommand, Resol
 	public ResolveArtifactsResult apply(ResolveArtifactsCommand c)
 	{
 		List<ArtifactRequest> requests = c.getQueries().stream()
-				.map(this::resolveArtifactQueryToArtifactRequest)
+				.map(this::serializableArtifactCoordsToArtifactRequest)
 				.collect(Collectors.toList());
 		
 		if (requests.isEmpty())
 		{
 			ResolveArtifactsResult r = new ResolveArtifactsResult();
-			r.setResults(Collections.emptyMap());
+			r.setResults(Collections.emptyList());
 			return r;
 		}
 		
@@ -115,15 +156,14 @@ class ResolveArtifactsHandler implements Function<ResolveArtifactsCommand, Resol
 			arResList = e.getResults();
 			if (arResList == null || arResList.isEmpty())
 			{
-				throw new CommandException(ExceptionInfoFactory.INSTANCE.apply(e));
+				throw new CommandException(e);
 			}
 		}
 		
 		ResolveArtifactsResult rar = new ResolveArtifactsResult();
 		rar.setResults(arResList.stream()
-				.collect(Collectors.toMap(
-						ResolveArtifactsHandler::artifactResultToResolveArtifactQuery, 
-						ResolveArtifactsHandler::artifactResultToResolveArtifactResult)));
+				.map(ResolveArtifactsHandler::artifactResultToSerializableArtifactResult)
+				.collect(Collectors.toCollection(ArrayList::new)));
 		return rar;
 	}
 

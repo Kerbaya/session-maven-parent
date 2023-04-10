@@ -16,34 +16,28 @@
  * You should have received a copy of the GNU General Public License
  * along with session-maven-plugin.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.kerbaya.session;
+package com.kerbaya.session.internal.resolve_artifacts;
 
+import java.io.Serializable;
 import java.util.List;
 
-import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.repository.RemoteRepository;
-
+import com.kerbaya.session.internal.Command;
 import com.kerbaya.session.internal.CommandVisitor;
-import com.kerbaya.session.internal.Result;
-import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsCommand;
-import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsResult;
 
-class CommandHandler implements CommandVisitor<Result>
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
+public class ResolveArtifactsCommand implements Command<ResolveArtifactsResult>, Serializable
 {
-	private final ResolveArtifactsHandler resolveArtifacts;
-	
-	public CommandHandler(
-			RepositorySystem rs,
-			RepositorySystemSession rss,
-			List<RemoteRepository> projectRepos)
-	{
-		resolveArtifacts = new ResolveArtifactsHandler(rs, rss, projectRepos);
-	}
+	private static final long serialVersionUID = 1L;
+
+	private List<SerializableArtifactCoords> queries;
 	
 	@Override
-	public ResolveArtifactsResult visit(ResolveArtifactsCommand c)
+	public <T> T accept(CommandVisitor<T> visitor)
 	{
-		return resolveArtifacts.apply(c);
+		return visitor.visit(this);
 	}
 }

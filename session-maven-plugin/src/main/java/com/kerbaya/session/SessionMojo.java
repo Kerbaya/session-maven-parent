@@ -40,9 +40,15 @@ import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.repository.RemoteRepository;
 
+import com.kerbaya.session.internal.Request;
+import com.kerbaya.session.internal.SessionPluginInfo;
+
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Starts a long-running Maven session to service requests from Maven Session (com.kerbaya:session-maven) 
+ */
 @org.apache.maven.plugins.annotations.Mojo(
 		name=SessionPluginInfo.MOJO_NAME,
 		requiresProject=false)

@@ -16,34 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with session-maven-plugin.  If not, see <http://www.gnu.org/licenses/>.
  */
-package com.kerbaya.session;
+package com.kerbaya.session.internal;
 
-import java.util.List;
-
-import org.eclipse.aether.RepositorySystem;
-import org.eclipse.aether.RepositorySystemSession;
-import org.eclipse.aether.repository.RemoteRepository;
-
-import com.kerbaya.session.internal.CommandVisitor;
-import com.kerbaya.session.internal.Result;
 import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsCommand;
-import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsResult;
 
-class CommandHandler implements CommandVisitor<Result>
+public interface CommandVisitor<T>
 {
-	private final ResolveArtifactsHandler resolveArtifacts;
-	
-	public CommandHandler(
-			RepositorySystem rs,
-			RepositorySystemSession rss,
-			List<RemoteRepository> projectRepos)
-	{
-		resolveArtifacts = new ResolveArtifactsHandler(rs, rss, projectRepos);
-	}
-	
-	@Override
-	public ResolveArtifactsResult visit(ResolveArtifactsCommand c)
-	{
-		return resolveArtifacts.apply(c);
-	}
+	T visit(ResolveArtifactsCommand c);
 }

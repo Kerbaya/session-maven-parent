@@ -17,6 +17,19 @@
 
 <packaging>pom</packaging>
 
+<scm child.scm.connection.inherit.append.path="false"
+		child.scm.developerConnection.inherit.append.path="false">
+	<connection>scm:git:https://github.com/Kerbaya/session-maven-parent.git</connection>
+	<developerConnection>scm:git:ssh://git@github.com/Kerbaya/session-maven-parent.git</developerConnection>
+	<url>https://github.com/Kerbaya/session-maven-parent/tree/${project.version}</url>
+	<tag>${project.version}</tag>
+</scm>
+
+<issueManagement>
+	<system>github</system>
+	<url>https://github.com/Kerbaya/session-maven-parent/issues</url>
+</issueManagement>
+
 <dependencyManagement>
 	<dependencies>
 		<dependency>
@@ -24,17 +37,169 @@
 			<artifactId>junit</artifactId>
 			<version>4.13.2</version>
 		</dependency>
-		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<version>1.18.24</version>
-		</dependency>
 	</dependencies>
 </dependencyManagement>
 
 <modules>
+	<module>session-maven-api</module>
 	<module>session-maven-plugin</module>
 	<module>session-maven</module>
 </modules>
+
+<build>
+	<pluginManagement>
+		<plugins>
+			<plugin>
+				<groupId>org.simplify4u.plugins</groupId>
+				<artifactId>sign-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>sign</id>
+						<goals>
+							<goal>sign</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-toolchains-plugin</artifactId>
+				<version>3.1.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>flatten-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>flatten</id>
+						<phase>package</phase>
+						<goals>
+							<goal>flatten</goal>
+						</goals>
+						<configuration>
+							<updatePomFile>true</updatePomFile>
+							<flattenDependencyMode>direct</flattenDependencyMode>
+							<pomElements>
+								<build>remove</build>
+								<ciManagement>expand</ciManagement>
+								<contributors>expand</contributors>
+								<dependencies>flatten</dependencies>
+								<dependencyManagement>remove</dependencyManagement>
+								<description>expand</description>
+								<developers>expand</developers>
+								<distributionManagement>remove</distributionManagement>
+								<inceptionYear>expand</inceptionYear>
+								<issueManagement>expand</issueManagement>
+								<mailingLists>expand</mailingLists>
+								<modules>remove</modules>
+								<name>expand</name>
+								<organization>expand</organization>
+								<parent>flatten</parent>
+								<pluginManagement>remove</pluginManagement>
+								<pluginRepositories>remove</pluginRepositories>
+								<prerequisites>expand</prerequisites>
+								<profiles>remove</profiles>
+								<properties>remove</properties>
+								<reporting>remove</reporting>
+								<repositories>remove</repositories>
+								<scm>expand</scm>
+								<url>expand</url>
+								<version>expand</version>
+							</pomElements>
+							<outputDirectory>${project.build.directory}</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>source</id>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>javadoc</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</pluginManagement>
+	<plugins>
+		<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>source</id>
+						<phase/>
+						<inherited>false</inherited>
+					</execution>
+				</executions>
+		</plugin>
+		<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>javadoc</id>
+						<phase/>
+						<inherited>false</inherited>
+					</execution>
+				</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.simplify4u.plugins</groupId>
+			<artifactId>sign-maven-plugin</artifactId>
+			<executions>
+				<execution>
+					<id>sign</id>
+					<phase/>
+					<inherited>false</inherited>
+				</execution>
+			</executions>
+		</plugin>
+		<plugin>
+			<groupId>org.codehaus.mojo</groupId>
+			<artifactId>flatten-maven-plugin</artifactId>
+			<executions>
+				<execution>
+					<id>flatten</id>
+					<phase/>
+					<inherited>false</inherited>
+				</execution>
+			</executions>
+		</plugin>
+	</plugins>
+</build>
+
+<profiles>
+	<profile>
+		<activation>
+			<activeByDefault>true</activeByDefault>
+		</activation>
+		<dependencies>
+			<dependency>
+				<groupId>org.projectlombok</groupId>
+				<artifactId>lombok</artifactId>
+				<version>1.18.24</version>
+				<scope>provided</scope>
+				<optional>true</optional>
+			</dependency>
+		</dependencies>
+	</profile>
+</profiles>
 
 </project>

@@ -6,15 +6,18 @@
 
 <parent>
 	<groupId>com.kerbaya</groupId>
-	<artifactId>session-maven-plugin</artifactId>
+	<artifactId>session-maven-parent</artifactId>
 	<version>1.0.0-SNAPSHOT</version>
 </parent>
 
-<groupId>com.kerbaya</groupId>
 <artifactId>session-maven-plugin</artifactId>
-<version>1.0.0-SNAPSHOT</version>
 
 <packaging>maven-plugin</packaging>
+
+<name>Maven Session Plugin</name>
+<description>Maintains a long-running Maven session to handle requests from the session-maven client</description>
+
+<url>https://github.com/Kerbaya/session-maven-parent/tree/develop/session-maven-plugin</url>
 
 <dependencies>
 	<dependency>
@@ -22,44 +25,29 @@
 		<artifactId>maven-core</artifactId>
 		<version>3.6.3</version>
 		<scope>provided</scope>
-		<optional>true</optional>
 	</dependency>
 	<dependency>
 		<groupId>org.apache.maven</groupId>
 		<artifactId>maven-resolver-provider</artifactId>
 		<version>3.6.3</version>
 		<scope>provided</scope>
-		<optional>true</optional>
 	</dependency>
 	<dependency>
 		<groupId>org.apache.maven.plugin-tools</groupId>
 		<artifactId>maven-plugin-annotations</artifactId>
 		<version>3.6.4</version>
 		<scope>provided</scope>
-		<optional>true</optional>
+	</dependency>
+	<dependency>
+		<groupId>${project.groupId}</groupId>
+		<artifactId>session-maven-api</artifactId>
+		<version>${project.version}</version>
 	</dependency>
 	<dependency>
 		<groupId>junit</groupId>
 		<artifactId>junit</artifactId>
-		<version>4.13.2</version>
 		<scope>test</scope>
 	</dependency>
-	<dependency>
-		<groupId>org.projectlombok</groupId>
-		<artifactId>lombok</artifactId>
-		<version>1.18.24</version>
-		<scope>provided</scope>
-		<optional>true</optional>
-	</dependency>
 </dependencies>
-
-<build>
-	<resources>
-		<resource>
-			<directory>src/main/filtered-resources</directory>
-			<filtering>true</filtering>
-		</resource>
-	</resources>
-</build>
 
 </project>

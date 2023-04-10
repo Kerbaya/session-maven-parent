@@ -22,8 +22,9 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.util.function.Function;
 
-import com.kerbaya.session.command.CommandException;
-import com.kerbaya.session.command.Result;
+import com.kerbaya.session.internal.Request;
+import com.kerbaya.session.internal.Response;
+import com.kerbaya.session.internal.Result;
 
 import lombok.AllArgsConstructor;
 
@@ -60,7 +61,7 @@ class RequestHandler implements Function<Request, Runnable>
 		catch (RuntimeException | Error e)
 		{
 			result = null;
-			ei = ExceptionInfoFactory.INSTANCE.apply(e);
+			ei = new SerializableExceptionInfoFactory().apply(e);
 		}
 		
 		res.setResult(result);
