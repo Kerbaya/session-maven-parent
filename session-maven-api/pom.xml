@@ -15,8 +15,6 @@
 <name>Maven Session Plugin API</name>
 <description>API for communication between session-maven and session-maven-plugin</description>
 
-<url>https://github.com/Kerbaya/session-maven-parent/tree/develop/session-maven-api</url>
-
 <dependencies>
 	<dependency>
 		<groupId>junit</groupId>

@@ -17,8 +17,6 @@
 <name>Maven Session Plugin</name>
 <description>Maintains a long-running Maven session to handle requests from the session-maven client</description>
 
-<url>https://github.com/Kerbaya/session-maven-parent/tree/develop/session-maven-plugin</url>
-
 <dependencies>
 	<dependency>
 		<groupId>org.apache.maven</groupId>

@@ -15,20 +15,12 @@
 <name>Maven Session</name>
 <description>A client for session-maven-plugin</description>
 
-<url>https://github.com/Kerbaya/session-maven-parent/tree/develop/session-maven</url>
-
 <dependencies>
 	<dependency>
 		<groupId>${project.groupId}</groupId>
 		<artifactId>session-maven-api</artifactId>
 		<version>${project.version}</version>
 	</dependency>
-<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
-<dependency>
-    <groupId>org.apache.commons</groupId>
-    <artifactId>commons-lang3</artifactId>
-    <version>3.12.0</version>
-</dependency>
 	<dependency>
 		<groupId>junit</groupId>
 		<artifactId>junit</artifactId>

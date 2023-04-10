@@ -30,6 +30,8 @@
 	<url>https://github.com/Kerbaya/session-maven-parent/issues</url>
 </issueManagement>
 
+<url>https://github.com/Kerbaya/session-maven-parent</url>
+
 <dependencyManagement>
 	<dependencies>
 		<dependency>
