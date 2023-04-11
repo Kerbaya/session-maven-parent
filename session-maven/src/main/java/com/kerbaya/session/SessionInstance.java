@@ -64,7 +64,7 @@ public class SessionInstance implements AutoCloseable
 			Path mvnHome,
 			List<String> mvnOpts,
 			Path projectDir,
-			Map<String, String> environment) throws IOException, InterruptedException
+			Map<String, String> environment)
 	{
 		this(
 				getMvnCommand(mvnHome, mvnOpts),
