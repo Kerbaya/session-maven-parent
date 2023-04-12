@@ -18,15 +18,20 @@
  */
 package com.kerbaya.session;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class SessionInstanceRig
 {
 	public static void main(String[] args)
 	{
-		int rc;
 		try
 		{
 			DefaultArtifactCoords dac = new DefaultArtifactCoords();
@@ -35,26 +40,50 @@ public class SessionInstanceRig
 			dac.setExtension("jar");
 			dac.setVersion("4.13.2");
 
+			Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+				e.printStackTrace();
+			});
+			Path dir = Files.createTempDirectory(null);
 			try (SessionInstance si = new SessionInstance(
-					Paths.get("C:", "dev", "apache-maven-3.8.4"),
-					Collections.emptyList(),
-					Paths.get("C:/temp"), 
+					Arrays.asList(
+							Paths.get("C:", "dev", "apache-maven-3.8.4", "bin", "mvn.cmd").toAbsolutePath().toString()),
+					dir, 
 					null))
 			{
-				for (int i = 0; i < 10; i++)
+				int tc = 100;
+				ExecutorService es = Executors.newFixedThreadPool(tc);
+				for (int i = 0; i < tc; i++)
 				{
-					List<ArtifactResult> rep = si.resolveArtifacts(Collections.singletonList(dac));
-					System.out.println(rep);
+					es.submit(() -> {
+						try
+						{
+							List<ArtifactResult> rep = si.resolveArtifacts(Collections.singletonList(dac));
+							synchronized(System.out)
+							{
+								System.out.println(rep);
+							}
+						}
+						catch (Throwable t)
+						{
+							synchronized(System.err)
+							{
+								t.printStackTrace(System.err);
+							}
+						}
+					});
 				}
+				es.shutdown();
+				es.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 			}
-			rc=0;
+			finally
+			{
+				Files.delete(dir);
+			}
 		}
 		catch (Throwable t)
 		{
 			t.printStackTrace();
-			rc=1;
 		}
-		System.exit(rc);
 	}
 
 }

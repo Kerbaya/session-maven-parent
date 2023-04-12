@@ -18,12 +18,18 @@
  */
 package com.kerbaya.session;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.lang.ProcessBuilder.Redirect;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -39,23 +45,28 @@ import com.kerbaya.session.internal.resolve_artifacts.ResolveArtifactsResult;
 
 public class SessionInstance implements AutoCloseable
 {
-	private final Object oosLock = new Object();
+	private final Object writeLock = new Object();
 	private final AtomicLong nextRequestId = new AtomicLong();
 	
+	private final Object readLock = new Object();
+	private final Map<Long, Response> responseMap = new HashMap<>();
+	
 	private final Process process;
+	private final InputStream is;
 	private final OutputStream os;
-	private final ObjectOutputStream oos;
-	private final ResponseReader responseReader;
+	
+	private volatile boolean reading;
 	
 	private static List<String> getMvnCommand(Path mvnHome, List<String> mvnOpts)
 	{
-		List<String> r = new ArrayList<>(mvnOpts.size() + 1);
+		List<String> r = new ArrayList<>(mvnOpts.size() + 2);
 		r.add(mvnHome.toAbsolutePath()
 				.resolve("bin")
 				.resolve(System.getProperty("os.name").startsWith("Windows") ?
 						"mvn.cmd"
 						: "mvn")
 				.toString());
+		r.add("-q");
 		r.addAll(mvnOpts);
 		return r;
 	}
@@ -109,33 +120,23 @@ public class SessionInstance implements AutoCloseable
 		
 		try
 		{
-			os = process.getOutputStream();
+			is = process.getInputStream();
 			try
 			{
-				oos = new ObjectOutputStream(os);
-				try
+				if (!new ByteSequenceFinder(is).find(
+						SessionPluginInfo.READY_PROMPT.getBytes(SessionPluginInfo.READY_PROMPT_ENCODING)))
 				{
-					responseReader = new ResponseReader(process::getInputStream);
-					new Thread(responseReader).start();
-					if (!responseReader.waitForState())
-					{
-						throw new SessionException("mavenStopped");
-					}
-					ok = true;
+					throw new IllegalStateException("mavenStopped");
 				}
-				finally
-				{
-					if (!ok)
-					{
-						oos.close();
-					}
-				}
+				
+				os = process.getOutputStream();
+				ok = true;
 			}
 			finally
 			{
 				if (!ok)
 				{
-					os.close();
+					is.close();
 				}
 			}
 		}
@@ -147,28 +148,122 @@ public class SessionInstance implements AutoCloseable
 		{
 			if (!ok)
 			{
-				process.destroyForcibly();
+				if (process.isAlive())
+				{
+					process.destroyForcibly();
+				}
 			}
 		}
 	}
 	
-	private <R extends Result> R execute(Command<R> command) throws IOException
+	private static Response readNext(InputStream is) throws ClassNotFoundException, IOException
+	{
+		byte[] size = new byte[Integer.BYTES];
+		
+		if (!ByteUtils.fill(is, size))
+		{
+			return null;
+		}
+		
+		byte[] resBuffer = new byte[ByteBuffer.wrap(size).getInt(0)];
+		
+		if (!ByteUtils.fill(is, resBuffer))
+		{
+			throw new IllegalStateException("incompleteResponse");
+		}
+		
+		try (ByteArrayInputStream bais = new ByteArrayInputStream(resBuffer);
+				ObjectInputStream ois = new ObjectInputStream(bais))
+		{
+			return (Response) ois.readObject();
+		}
+	}
+
+	private Response readResponse(long myReqId) throws ClassNotFoundException, IOException, InterruptedException
+	{
+		Long myReqIdKey = myReqId;
+		Response res;
+		
+		synchronized(readLock)
+		{
+			res = responseMap.remove(myReqIdKey);
+			if (res != null)
+			{
+				return res;
+			}
+			
+			while (reading)
+			{
+				readLock.wait();
+				res = responseMap.remove(myReqIdKey);
+				if (res != null)
+				{
+					return res;
+				}
+			}
+			
+			reading = true;
+		}
+		
+		try
+		{
+			while ((res = readNext(is)) != null)
+			{
+				long resReqId = res.getRequestId();
+				if (resReqId == myReqId)
+				{
+					return res;
+				}
+				
+				synchronized(readLock)
+				{
+					responseMap.put(resReqId, res);
+					readLock.notifyAll();
+				}
+			}
+		}
+		finally
+		{
+			synchronized(readLock)
+			{
+				reading = false;
+				readLock.notifyAll();
+			}
+		}
+		
+		return null;
+	}
+	
+	private <R extends Result> R execute(Command<R> command) 
+			throws IOException, ClassNotFoundException, InterruptedException
 	{
 		long requestId = nextRequestId.getAndIncrement();
 		Request req = new Request();
 		req.setRequestId(requestId);
 		req.setCommand(command);
 		
-		synchronized(oosLock)
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream())
 		{
-			oos.writeObject(req);
-			oos.flush();
+			try (ObjectOutputStream oos = new ObjectOutputStream(baos))
+			{
+				oos.writeObject(req);
+			}
+			
+			byte[] size = ByteBuffer.allocate(Integer.BYTES).putInt(baos.size()).array();
+			
+			synchronized(writeLock)
+			{
+				os.write(size);
+				os.flush();
+				baos.writeTo(os);
+				os.flush();
+			}
 		}
 		
-		Response res = responseReader.waitForResponse(requestId);
+		Response res = readResponse(requestId);
 		if (res == null)
 		{
-			throw new IllegalStateException("Maven stopped");
+			throw new IllegalStateException("mavenStopped");
 		}
 		
 		ExceptionInfo ei = res.getExceptionInfo();
@@ -194,7 +289,7 @@ public class SessionInstance implements AutoCloseable
 		{
 			r = execute(rac);
 		}
-		catch (IOException e)
+		catch (IOException | ClassNotFoundException | InterruptedException e)
 		{
 			throw new IllegalStateException(e);
 		}
@@ -209,21 +304,38 @@ public class SessionInstance implements AutoCloseable
 		{
 			close0();
 		}
-		catch (IOException e)
+		catch (IOException | InterruptedException e)
 		{
 			throw new IllegalStateException(e);
 		}
 	}
 	
-	private void close0() throws IOException
+	private void close0() throws IOException, InterruptedException
 	{
 		try
 		{
-			oos.close();
+			synchronized(writeLock)
+			{
+				os.close();
+			}
 		}
 		finally
 		{
-			os.close();
+			try
+			{
+				synchronized(readLock)
+				{
+					while (reading)
+					{
+						readLock.wait();
+					}
+					is.close();
+				}
+			}
+			finally
+			{
+				process.waitFor();
+			}
 		}
 	}
 }

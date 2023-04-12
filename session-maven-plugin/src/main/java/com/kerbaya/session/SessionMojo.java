@@ -20,12 +20,11 @@ package com.kerbaya.session;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.Writer;
+import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -40,7 +39,6 @@ import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.repository.RemoteRepository;
 
-import com.kerbaya.session.internal.Request;
 import com.kerbaya.session.internal.SessionPluginInfo;
 
 import lombok.Getter;
@@ -66,38 +64,65 @@ public class SessionMojo implements org.apache.maven.plugin.Mojo
 	
 	@Parameter(defaultValue="${project.remoteProjectRepositories}", required=true, readonly=true)
     private List<RemoteRepository> projectRepos;
+	
+	public static boolean fill(InputStream is, byte[] bytes) throws IOException
+	{
+		int off = 0;
+		while (off < bytes.length)
+		{
+			int nextLen = bytes.length - off;
+			int len = is.read(bytes, off, nextLen);				
+
+			if (len == -1)
+			{
+				return false;
+			}
+			off += len;
+		}
+		
+		return true;
+	}
 
 	private void execute0() throws IOException, ClassNotFoundException, InterruptedException
 	{
 		ExecutorService es = Executors.newCachedThreadPool();
-		CommandHandler commandHandler = new CommandHandler(rs, rss, projectRepos);
-		
-		try (OutputStream nullOs = new NullOutputStream();
-				PrintStream nullPs = new PrintStream(nullOs);
-				OutputStream os = new NonClosingOutputStream(System.out))
+		try
 		{
-			System.setOut(nullPs);
+			CommandHandler commandHandler = new CommandHandler(rs, rss, projectRepos);
 			
-			try (Writer out = new OutputStreamWriter(os, SessionPluginInfo.READY_PROMPT_ENCODING))
+			OutputStream os = System.out;
+			try (OutputStream nullOs = new NullOutputStream();
+					PrintStream nullPs = new PrintStream(nullOs))
 			{
-				out.append(SessionPluginInfo.READY_PROMPT);
-			}
-			
-			try (InputStream is = new NonClosingInputStream(System.in);
-					ObjectInputStream ois = new ObjectInputStream(is);
-					ObjectOutputStream oos = new ObjectOutputStream(os))
-			{
-				RequestHandler requestHandler = new RequestHandler(oos, commandHandler);
+				System.setOut(nullPs);
 				
-				Request req;
-				while ((req = (Request) ois.readObject()) != null)
+				try (OutputStream gos = new NonClosingOutputStream(os);
+						Writer out = new OutputStreamWriter(gos, SessionPluginInfo.READY_PROMPT_ENCODING))
 				{
-					es.execute(requestHandler.apply(req));
+					out.append(SessionPluginInfo.READY_PROMPT);
 				}
 				
-				es.shutdown();
-				es.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+				RequestHandler requestHandler = new RequestHandler(os, commandHandler);
+				
+				ByteBuffer sizeBuffer = ByteBuffer.allocate(Integer.BYTES);
+				byte[] size = sizeBuffer.array();
+				
+				while (fill(System.in, size))
+				{
+					byte[] reqBuffer = new byte[sizeBuffer.getInt(0)];
+					if (!fill(System.in, reqBuffer))
+					{
+						break;
+					}
+					
+					es.execute(requestHandler.apply(reqBuffer));
+				}
 			}
+		}
+		finally
+		{
+			es.shutdown();
+			es.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
 		}
 	}
 	

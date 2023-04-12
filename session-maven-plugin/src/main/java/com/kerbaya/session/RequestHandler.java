@@ -18,8 +18,13 @@
  */
 package com.kerbaya.session;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.function.Function;
 
 import com.kerbaya.session.internal.Request;
@@ -29,21 +34,28 @@ import com.kerbaya.session.internal.Result;
 import lombok.AllArgsConstructor;
 
 @AllArgsConstructor
-class RequestHandler implements Function<Request, Runnable>
+class RequestHandler implements Function<byte[], Runnable>
 {
 	private final Object outputLock = new Object();
 	
-	private final ObjectOutputStream oos;
+	private final OutputStream os;
 	private final CommandHandler commandHandler;
 	
 	@Override
-	public Runnable apply(Request t)
+	public Runnable apply(byte[] reqBytes)
 	{
-		return new RequestTask(t);
+		return new RequestTask(reqBytes);
 	}
 	
-	private void processRequest(Request req) throws IOException
+	private void processRequest(byte[] reqBytes) throws IOException, ClassNotFoundException
 	{
+		Request req;
+		try (ByteArrayInputStream bais = new ByteArrayInputStream(reqBytes);
+				ObjectInputStream ois = new ObjectInputStream(bais))
+		{
+			req = (Request) ois.readObject();
+		}
+		
 		Response res = new Response();
 		res.setRequestId(req.getRequestId());
 		ExceptionInfo ei = null;
@@ -67,26 +79,39 @@ class RequestHandler implements Function<Request, Runnable>
 		res.setResult(result);
 		res.setExceptionInfo(ei);
 		
-		synchronized(outputLock)
+		// thread-level buffers
+		try (ByteArrayOutputStream baos = new ByteArrayOutputStream())
 		{
-			oos.writeObject(res);
-			oos.flush();
+			try (ObjectOutputStream oos = new ObjectOutputStream(baos))
+			{
+				oos.writeObject(res);
+			}
+			
+			byte[] size = ByteBuffer.allocate(Integer.BYTES).putInt(baos.size()).array();
+			
+			synchronized(outputLock)
+			{
+				os.write(size);
+				os.flush();
+				baos.writeTo(os);
+				os.flush();
+			}
 		}
 	}
 	
 	@AllArgsConstructor
 	private final class RequestTask implements Runnable
 	{
-		private final Request request;
+		private final byte[] reqBytes;
 		
 		@Override
 		public void run()
 		{
 			try
 			{
-				processRequest(request);
+				processRequest(reqBytes);
 			}
-			catch (IOException e)
+			catch (IOException | ClassNotFoundException e)
 			{
 				throw new IllegalStateException(e);
 			}
