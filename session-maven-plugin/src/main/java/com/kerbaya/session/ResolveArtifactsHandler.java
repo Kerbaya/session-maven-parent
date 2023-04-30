@@ -154,7 +154,7 @@ class ResolveArtifactsHandler implements Function<ResolveArtifactsCommand, Resol
 		List<ArtifactResult> arResList;
 		try
 		{
-			arResList = rs.resolveArtifacts(rss, requests);
+			arResList = rs.resolveArtifacts(rssCopy, requests);
 		}
 		catch (ArtifactResolutionException e)
 		{
