@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.eclipse.aether.DefaultRepositoryCache;
+import org.eclipse.aether.DefaultRepositorySystemSession;
 import org.eclipse.aether.RepositorySystem;
 import org.eclipse.aether.RepositorySystemSession;
 import org.eclipse.aether.RequestTrace;
@@ -145,6 +147,9 @@ class ResolveArtifactsHandler implements Function<ResolveArtifactsCommand, Resol
 			r.setResults(Collections.emptyList());
 			return r;
 		}
+		
+		DefaultRepositorySystemSession rssCopy = new DefaultRepositorySystemSession(rss);
+		rssCopy.setCache(new DefaultRepositoryCache());
 		
 		List<ArtifactResult> arResList;
 		try
